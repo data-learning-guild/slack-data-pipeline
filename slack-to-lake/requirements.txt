@@ -1,2 +1,3 @@
 Flask>1
 slack_boltPyYAML==5.4.1
+yapf==0.31.0
