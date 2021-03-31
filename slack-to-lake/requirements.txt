@@ -1,2 +1,2 @@
 Flask>1
-slack_bolt
+slack_boltPyYAML==5.4.1
