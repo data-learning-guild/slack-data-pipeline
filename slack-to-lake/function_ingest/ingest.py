@@ -2,8 +2,10 @@ import datetime
 import json
 import logging
 import os
+import pytz
 import tempfile
 from slack_bolt import App
+from slack_sdk import errors
 from typing import List
 
 logfilename = 'ingest_log_{}.log'.format(datetime.datetime.now().isoformat())
@@ -15,6 +17,8 @@ logging.basicConfig(
 
 def download_conversations_list(client, page_limit: int) -> List[dict]:
     """download Slack Web API conversations.list response.
+        Returns:
+            [{"id":xx, "name":yy}, {}, ...]
     """
     channels = []
     next_obj_exists = True
@@ -35,6 +39,8 @@ def download_conversations_list(client, page_limit: int) -> List[dict]:
 
 def download_users_list(client, page_limit: int) -> List[dict]:
     """download Slack Web API users.list response.
+        Returns:
+            [{"id":xx, "name":yy}, {}, ...]
     """
     users = []
     next_obj_exists = True
@@ -52,9 +58,62 @@ def download_users_list(client, page_limit: int) -> List[dict]:
     return users
 
 
+def download_conversations_history(
+    client, channel: str, page_limit: int,
+    latest_unix_time: float, oldest_unix_time: float) -> dict:
+    """download Slack Web API conversations.list response.
+        Returns:
+            {"channel":ccc, "messages":[{"text":xx, "ts":yy}, {}, ...]}
+    """
+    conversations_by_channel = {"channel": channel, "messages": []}
+    next_obj_exists = True
+    next_cursor = None
+    while next_obj_exists is True:
+        try:
+            slack_response = client.conversations_history(
+                                channel = channel,
+                                cursor = next_cursor,
+                                limit = page_limit,
+                                latest = latest_unix_time,
+                                oldest = oldest_unix_time)
+            conversations_by_channel["messages"].extend(slack_response.get('messages'))
+            if slack_response.get('has_more') is False:
+                next_cursor = ""
+            else:
+                next_cursor = slack_response.get('response_metadata').get('next_cursor')
+        except errors.SlackApiError as e:
+            logging.info(e)
+            break
+        if next_cursor == "":
+            next_obj_exists = False
+    
+    return conversations_by_channel
+
+
+def target_channel_id_name_list(
+    conversations_list: list=None, including_archived: bool=False):
+    """extract targeted channels id list from conversations_list response.
+        Returns:
+            id_list, name_list
+    """
+    id_list = []
+    name_list = []
+    for ch in conversations_list:
+        if including_archived is False:
+            if ch['is_archived'] is True:
+                continue
+        id_list.append(ch['id'])
+        name_list.append(ch['name'])
+    return id_list, name_list
+
 
 # ==  BEGIN - Main Cloud Function  ==
-def ingest_slack_data():
+def ingest_slack_data(latest_ut: float=None, oldest_ut: float=None):
+    """ingest slack data
+        Arguments:
+            latest_ut: データ取得対象の最新タイムスタンプ（UNIXタイム）
+            oldest_ut: データ取得対象の最古タイムスタンプ（UNIXタイム）
+    """
     # ボットトークンと署名シークレットを使ってアプリを初期化します
     app = App(
         # process_before_response must be True when running on FaaS
@@ -62,18 +121,37 @@ def ingest_slack_data():
         token=os.environ.get("SLACK_BOT_TOKEN"),
         signing_secret=os.environ.get("SLACK_SIGNING_SECRET")
     )
+    # 時刻が明示されていない場合は、通常のデイリー実行を前提として
+    # データ取得期間を定義する
+    if latest_ut is None or oldest_ut is None:
+        tz = pytz.timezone('Asia/Tokyo')
+        start_of_today = datetime.datetime.now(tz).replace(hour=0,minute=0,second=0,microsecond=0)
+        latest_ut = start_of_today.timestamp()
+        start_of_yesterday = start_of_today - datetime.timedelta(days=1)
+        oldest_ut = start_of_yesterday.timestamp()
+    
     client = app.client
     
+    # ingest channles list
     channels = download_conversations_list(client=client, page_limit=100)
     save_as_json(channels, 'conversations_list.json')
     
+    # ingest users list
     users = download_users_list(client=client, page_limit=100)
     save_as_json(users, 'users_list.json')
     
-    #conversations = download_conversations_history(
-    #    client=client, page_limit=100, latest_unix_time=None, oldest_unix_time=None)
-    #save_as_json(conversations, 'conversations_history.json')
-
+    # ingest conversations history
+    channel_id_list, channel_name_list = target_channel_id_name_list(channels, including_archived=False)
+    conversations = []
+    for channel_id, channel_name in zip(channel_id_list, channel_name_list):
+        logging.info('download conversations (ch_id: {0}, ch_name: {1})'.format(
+            channel_id, channel_name))
+        conversations_by_ch = download_conversations_history(
+            client=client, channel=channel_id, page_limit=100, latest_unix_time=latest_ut, oldest_unix_time=oldest_ut
+        )
+        conversations.append(conversations_by_ch)
+    save_as_json(conversations, 'conversations_history.json')
+    
     return 'Successfully ingested slack data.'
 # ==  END - Main Cloud Function  ==
 
