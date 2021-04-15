@@ -26,13 +26,32 @@ def download_conversations_list(client, page_limit: int) -> List[dict]:
                             types = 'public_channel,private_channel')
         
         channels.extend(slack_response.get('channels'))
-
         next_cursor = slack_response.get('response_metadata').get('next_cursor')
         if next_cursor == "":
             next_obj_exists = False
     
     return channels
+
+
+def download_users_list(client, page_limit: int) -> List[dict]:
+    """download Slack Web API users.list response.
+    """
+    users = []
+    next_obj_exists = True
+    next_cursor = None
+    while next_obj_exists is True:
+        slack_response = client.users_list(
+                            cursor = next_cursor,
+                            limit = page_limit)
+        
+        users.extend(slack_response.get('members'))
+        next_cursor = slack_response.get('response_metadata').get('next_cursor')
+        if next_cursor == "":
+            next_obj_exists = False
     
+    return users
+
+
 
 # ==  BEGIN - Main Cloud Function  ==
 def ingest_slack_data():
@@ -48,8 +67,8 @@ def ingest_slack_data():
     channels = download_conversations_list(client=client, page_limit=100)
     save_as_json(channels, 'conversations_list.json')
     
-    #users = download_users_list(client=client, page_limit=100)
-    #save_as_json(users, 'users_list.json')
+    users = download_users_list(client=client, page_limit=100)
+    save_as_json(users, 'users_list.json')
     
     #conversations = download_conversations_history(
     #    client=client, page_limit=100, latest_unix_time=None, oldest_unix_time=None)
