@@ -3,12 +3,14 @@ import json
 import logging
 import os
 import pytz
+import shutil
 import tempfile
+from pathlib import Path
 from slack_bolt import App
 from slack_sdk import errors
 from typing import List
 
-logfilename = 'ingest_log_{}.log'.format(datetime.datetime.now().isoformat())
+logfilename = 'ingest_log_at_{}.log'.format(datetime.datetime.now().isoformat())
 logging.basicConfig(
     filename=logfilename,
     format='%(asctime)s %(message)s', datefmt='%Y-%m-%d %I:%M:%S %p',
@@ -107,6 +109,15 @@ def target_channel_id_name_list(
     return id_list, name_list
 
 
+def exporting_dir(oldest_ut: float=None) -> str:
+    oldest_dt = datetime.datetime.fromtimestamp(oldest_ut)
+    oldest_dt_str = datetime.datetime.strftime(oldest_dt, format='%Y-%m-%d')
+    dir_name = "daily-ingest_target-date_{}".format(oldest_dt_str)
+    dir_path = './{}'.format(dir_name)
+    Path(dir_path).mkdir(parents=True, exist_ok=True)
+    return dir_path
+
+
 # ==  BEGIN - Main Cloud Function  ==
 def ingest_slack_data(latest_ut: float=None, oldest_ut: float=None):
     """ingest slack data
@@ -129,16 +140,19 @@ def ingest_slack_data(latest_ut: float=None, oldest_ut: float=None):
         latest_ut = start_of_today.timestamp()
         start_of_yesterday = start_of_today - datetime.timedelta(days=1)
         oldest_ut = start_of_yesterday.timestamp()
+    out_dir = exporting_dir(oldest_ut=oldest_ut)
+    logging.info('out_dir : {}'.format(out_dir))
+    logging.info('oldest_ut : {}'.format(oldest_ut) + ' | latest_ut : {}'.format(latest_ut))
     
     client = app.client
     
     # ingest channles list
     channels = download_conversations_list(client=client, page_limit=100)
-    save_as_json(channels, 'conversations_list.json')
+    save_as_json(channels, out_dir + '/' + 'conversations_list.json')
     
     # ingest users list
     users = download_users_list(client=client, page_limit=100)
-    save_as_json(users, 'users_list.json')
+    save_as_json(users, out_dir + '/' + 'users_list.json')
     
     # ingest conversations history
     channel_id_list, channel_name_list = target_channel_id_name_list(channels, including_archived=False)
@@ -150,8 +164,12 @@ def ingest_slack_data(latest_ut: float=None, oldest_ut: float=None):
             client=client, channel=channel_id, page_limit=100, latest_unix_time=latest_ut, oldest_unix_time=oldest_ut
         )
         conversations.append(conversations_by_ch)
-    save_as_json(conversations, 'conversations_history.json')
+    save_as_json(conversations, out_dir + '/' + 'conversations_history.json')
     
+    # copy log to export dir
+    from_log_path = Path(logfilename)
+    to_log_path = Path(out_dir)
+    shutil.copy2(from_log_path, to_log_path)
     return 'Successfully ingested slack data.'
 # ==  END - Main Cloud Function  ==
 
