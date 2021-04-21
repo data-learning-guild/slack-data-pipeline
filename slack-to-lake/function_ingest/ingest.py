@@ -4,6 +4,7 @@ import logging
 import os
 import pytz
 import shutil
+import sys
 import tempfile
 from pathlib import Path
 from slack_bolt import App
@@ -186,5 +187,13 @@ def save_as_json(data: List[dict], fname: str=None):
 
 # run app
 if __name__ == "__main__":
-    return_str = ingest_slack_data()
+    # parse args
+    args = sys.argv
+    latest_ut = 0
+    oldest_ut = 0
+    if len(args) > 2:
+        latest_ut = float(args[1])
+        oldest_ut = float(args[2])
+    # main proc
+    return_str = ingest_slack_data(latest_ut=latest_ut, oldest_ut=oldest_ut)
     logging.info(return_str)
