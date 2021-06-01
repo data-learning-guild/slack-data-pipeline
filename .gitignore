@@ -129,3 +129,5 @@ dmypy.json
 .pyre/
 
 .env.yaml
+setup_env_for_localtest.sh
+.vscode/

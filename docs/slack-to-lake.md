@@ -44,18 +44,18 @@ Via Slack API methods below. ([document and tester](https://api.slack.com/method
 > 前月の1日〜末日までを指定して、1月分のデータを取得
 > Input: 実行日の日付
 
-- admin.analytics.getFile
-  - チャンネルアナリティクス
+- ~~admin.analytics.getFile~~ ※ only Slack Enterprise
+  - ~~チャンネルアナリティクス~~
     - `type=public_channel`
     - `date=YYYY-MM-DD` in UTC (from 2020/01)：バッチ処理実行日
-  - メンバーアナリティクス
+  - ~~メンバーアナリティクス~~
     - `type=member`
     - `date=YYYY-MM-DD` in UTC (from 2020/01)：バッチ処理実行日
 
 
 ## How to transform
 
-- admin.analytics.getFile
+- ~~admin.analytics.getFile~~
   - メールアドレスは保存対象から除外する
 - Others within pagenation
   - `limit` パラメータを明示的に設定し、ページごとに細かく区切って取得する

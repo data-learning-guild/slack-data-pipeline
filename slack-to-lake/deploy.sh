@@ -1,0 +1,1 @@
+gcloud functions deploy ingest_slack_data --source=./function_ingest --env-vars-file=.env.yaml  --trigger-http --runtime=python37 --allow-unauthenticated --project=salck-visualization --region=asia-northeast1

@@ -16,3 +16,6 @@
 
 node_modules
 #!include:.gitignore
+.pytest_cache/
+*/conftest.py
+*/test_ingest.py

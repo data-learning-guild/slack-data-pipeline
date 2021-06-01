@@ -1,0 +1,1 @@
+gcloud functions call ingest_slack_data --region=asia-northeast1 --project=salck-visualization --data='{}'
