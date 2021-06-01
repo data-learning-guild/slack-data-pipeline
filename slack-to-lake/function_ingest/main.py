@@ -225,7 +225,7 @@ def save_into_bucket(data: List[dict], bucket: storage.bucket.Bucket, obj_name: 
     """save response data as json into cloud storage bucket
     """
     blob = storage.blob.Blob(name=obj_name, bucket=bucket)
-    f = io.BytesIO(json.dumps(data, ensure_ascii=False).encode('utf-8'))
+    f = io.BytesIO(json.dumps(data, ensure_ascii=False, indent=10).encode('utf-8'))
     try:
         blob.upload_from_file(f)
     except exceptions.GoogleCloudError as e:
