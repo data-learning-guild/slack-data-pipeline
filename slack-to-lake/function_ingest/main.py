@@ -1,6 +1,7 @@
 import datetime
 import io
 import json
+import jsonlines
 import logging
 import os
 import pytz
@@ -225,13 +226,17 @@ def save_into_bucket(data: List[dict], bucket: storage.bucket.Bucket, obj_name: 
     """save response data as json into cloud storage bucket
     """
     blob = storage.blob.Blob(name=obj_name, bucket=bucket)
-    f = io.BytesIO(json.dumps(data, ensure_ascii=False, indent=10).encode('utf-8'))
+    f = io.BytesIO()
+    with jsonlines.Writer(f) as writer:
+        for d in data:
+            writer.write(d)
     try:
-        blob.upload_from_file(f)
+        blob.upload_from_file(f, rewind=True)
     except exceptions.GoogleCloudError as e:
         logging.warning('Upload Error : {}'.format(obj_name))
         logging.warning(e)
     logging.info('save {}'.format(obj_name))
+    f.close()
 # ==  END - Sub Cloud Function  ==
 
 
