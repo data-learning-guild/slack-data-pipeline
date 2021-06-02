@@ -35,6 +35,8 @@ This directory includes scripts of ETL for ingesting to data lake.
     - create `./.env.yaml` and set environs below
       - `SLACK_SIGNING_SECRET=<>`
       - `SLACK_BOT_TOKEN=<xoxb->`
+      - `TOPIC_NAME=ingested-slackdata-to-gcs`
+      - `PROJECT_ID=salck-visualization`
 2. Deploy the function
     - exec `./deploy.sh`
 3. Call the function

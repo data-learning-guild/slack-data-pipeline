@@ -32,4 +32,4 @@
 
 ## schema of datawarehouse on bq
 
-
+**TODO : architect datawarehouse schema**
