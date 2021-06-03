@@ -1,5 +1,18 @@
 # lake-to-warehouse
 
+## usage
+
+### environment values
+
+1. Create `.env.yaml`
+2. Set environment values
+    - `TOPIC_NAME`: topic name that triggers this function
+    - `PROJECT_ID`: target project id
+    - `GCS_BUCKET`: source bucket name
+    - `BQ_LAKE_DATASET`: datalake dataset name (temporary) on BQ
+    - `BQ_WAREHOUSE_DATASET`: datawarehouse dataset name on BQ
+
+
 ## schema of datalake on bq
 
 - conversations_history
