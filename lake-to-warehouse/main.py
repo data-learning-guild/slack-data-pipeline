@@ -16,6 +16,7 @@ PROJECT_ID = os.getenv('PROJECT_ID', default='salck-visualization')
 GCS_BUCKET = os.getenv('GCS_BUCKET')
 BQ_LAKE_DATASET = os.getenv('BQ_LAKE_DATASET')
 BQ_WAREHOUSE_DATASET = os.getenv('BQ_WAREHOUSE_DATASET')
+KEY_TARGET_DATE = 'target_date'
 
 
 def subscribe_test(event, context):
@@ -30,7 +31,7 @@ def load_gcs_json_to_bq_tbl(blob_dir: str=None):
     
     # load by tables
     for fn in LOADING_FILE_NAMES:
-        table_name = 'work_' + fn[:-5]        
+        table_name = 'work_' + fn[:-5]
         table_id = f"{PROJECT_ID}.{BQ_LAKE_DATASET}.{table_name}"
         
         job_config = bigquery.LoadJobConfig(
@@ -55,14 +56,46 @@ def load_gcs_json_to_bq_tbl(blob_dir: str=None):
         print(f"Loaded {destination_table.num_rows} rows.")
 
 
-def load_to_warehouse(event, context):
-    # parse published message
-    data_bytes = base64.b64decode(event['data'])
-    data = json.loads(data_bytes.decode('utf-8'))
-    print(f"Published message by previous workflow : \n{data['data']['message']}")
-    
-    # get blob dir from event(published msg)
-    blob_dir = data['data']['blob-dir-path']
+def load_to_warehouse(event, context, **kwargs):
+    """Background Cloud Function to be triggered by Pub/Sub.
+    Args:
+        event (dict):  The dictionary with data specific to this type of
+                        event. The `@type` field maps to
+                        `type.googleapis.com/google.pubsub.v1.PubsubMessage`.
+                        The `data` field maps to the PubsubMessage data
+                        in a base64-encoded string. The `attributes` field maps
+                        to the PubsubMessage attributes if any is present.
+        context (google.cloud.functions.Context): Metadata of triggering event
+                        including `event_id` which maps to the PubsubMessage
+                        messageId, `timestamp` which maps to the PubsubMessage
+                        publishTime, `event_type` which maps to
+                        `google.pubsub.topic.publish`, and `resource` which is
+                        a dictionary that describes the service API endpoint
+                        pubsub.googleapis.com, the triggering topic's name, and
+                        the triggering event type
+                        `type.googleapis.com/google.pubsub.v1.PubsubMessage`.
+        kwargs (dict):  Execution parameters of specifying json blob path to load.
+                        This dict has `target_date` as a key. json blob path is
+                        `gs://{bucket-name}/slack_lake/daily-ingest_target-date_{YYYY-MM-DD}/*.json`.
+                        This dict has invalid keys when it is called by `gcloud functions call` cmd
+                        for testing or manual execution.
+    Returns:
+        None. The output is written to Cloud Logging.
+    """
+    # ------------------------------
+    # get blob dir
+    blob_dir = ''
+    if KEY_TARGET_DATE in kwargs.keys(): # testing or manual execution
+        target_date = kwargs[KEY_TARGET_DATE]
+        print(f"Target date that is specified by manual exec param : \n{target_date}")
+        blob_dir = f"slack_lake/daily-ingest_target-date_{target_date}"
+    else:   # automatic execution (usually)
+        # parse published message
+        data_bytes = base64.b64decode(event['data'])
+        data = json.loads(data_bytes.decode('utf-8'))
+        print(f"Published message by previous workflow : \n{data['data']['message']}")
+        # get blob dir from event(published msg)
+        blob_dir = data['data']['blob-dir-path']
     
     # Load objects(in GCS) to BQ work tables for datalake
     load_gcs_json_to_bq_tbl(blob_dir)
@@ -71,9 +104,4 @@ def load_to_warehouse(event, context):
     """
     datalake to datawarehouse with SQL on BQ
     SQLファイルは別ファイルにしたほうがいいかも、できるならね
-    """
-    
-    # Delete work tables for datalake
-    """
-    bq delete table ... 的な処理
     """
