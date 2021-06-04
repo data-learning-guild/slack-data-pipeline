@@ -56,7 +56,7 @@ def load_gcs_json_to_bq_tbl(blob_dir: str=None):
         print(f"Loaded {destination_table.num_rows} rows.")
 
 
-def load_to_warehouse(event, context, **kwargs):
+def load_to_warehouse(event, context):
     """Background Cloud Function to be triggered by Pub/Sub.
     Args:
         event (dict):  The dictionary with data specific to this type of
@@ -74,28 +74,15 @@ def load_to_warehouse(event, context, **kwargs):
                         pubsub.googleapis.com, the triggering topic's name, and
                         the triggering event type
                         `type.googleapis.com/google.pubsub.v1.PubsubMessage`.
-        kwargs (dict):  Execution parameters of specifying json blob path to load.
-                        This dict has `target_date` as a key. json blob path is
-                        `gs://{bucket-name}/slack_lake/daily-ingest_target-date_{YYYY-MM-DD}/*.json`.
-                        This dict has invalid keys when it is called by `gcloud functions call` cmd
-                        for testing or manual execution.
     Returns:
         None. The output is written to Cloud Logging.
     """
-    # ------------------------------
-    # get blob dir
-    blob_dir = ''
-    if KEY_TARGET_DATE in kwargs.keys(): # testing or manual execution
-        target_date = kwargs[KEY_TARGET_DATE]
-        print(f"Target date that is specified by manual exec param : \n{target_date}")
-        blob_dir = f"slack_lake/daily-ingest_target-date_{target_date}"
-    else:   # automatic execution (usually)
-        # parse published message
-        data_bytes = base64.b64decode(event['data'])
-        data = json.loads(data_bytes.decode('utf-8'))
-        print(f"Published message by previous workflow : \n{data['data']['message']}")
-        # get blob dir from event(published msg)
-        blob_dir = data['data']['blob-dir-path']
+    # parse published message
+    data_bytes = base64.b64decode(event['data'])
+    data = json.loads(data_bytes.decode('utf-8'))
+    print(f"Published message by previous workflow : \n{data['data']['message']}")
+    # get blob dir from event(published msg)
+    blob_dir = data['data']['blob-dir-path']
     
     # Load objects(in GCS) to BQ work tables for datalake
     load_gcs_json_to_bq_tbl(blob_dir)

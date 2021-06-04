@@ -7,7 +7,6 @@ import datetime
 import json
 import sys
 
-KEY_TARGET_DATE = 'target_date'
 
 def main():
     args = sys.argv
@@ -29,14 +28,14 @@ def main():
         _end = _start + datetime.timedelta(days=1)
     
     # make script string
-    base_str = "gcloud functions call load_to_warehouse --region=asia-northeast1 --project=salck-visualization"
+    base_str = "gcloud pubsub topics publish ingested-slackdata-to-gcs --project=salck-visualization"
     cmd_lines = []
     for i, target_date in enumerate(target_dates):
-        comment_str = "echo exec call function {}".format(i+1)
+        comment_str = "echo exec trigger function {}".format(i+1)
         cmd_lines.append(comment_str)
-        
-        opt = {KEY_TARGET_DATE: target_date}
-        opt_str = "--data=\'{}\'".format(json.dumps(opt))
+        blob_dir = f"slack_lake/daily-ingest_target-date_{target_date}"
+        opt = "{\\\"data\\\":{\\\"message\\\":\\\"Manual Publish with gcloud\\\",\\\"blob-dir-path\\\":" + f"\\\"{blob_dir}\\\"" + "}}"
+        opt_str = f"--message=\"{opt}\""
         cmd_lines.append(base_str + " " + opt_str)
 
     # write script
