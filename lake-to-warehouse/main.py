@@ -2,6 +2,8 @@ import base64
 import json
 import os
 
+from enum import IntEnum
+
 from google.cloud import bigquery
 
 FN_CONVS_HISTORY = "conversations_history.json"
@@ -16,7 +18,21 @@ PROJECT_ID = os.getenv('PROJECT_ID', default='salck-visualization')
 GCS_BUCKET = os.getenv('GCS_BUCKET')
 BQ_LAKE_DATASET = os.getenv('BQ_LAKE_DATASET')
 BQ_WAREHOUSE_DATASET = os.getenv('BQ_WAREHOUSE_DATASET')
-KEY_TARGET_DATE = 'target_date'
+
+class DwhTbls(IntEnum):
+    TBL_0 = 0
+    TBL_1 = 1
+    TBL_2 = 2
+DWH_TABLE_NAMES = [
+    "TBL_0",
+    "TBL_1",
+    "TBL_2"
+]
+DWH_SCHEMAS = [
+    [("col_name", "type"), ("col_name", "type"), ("col_name", "type")],
+    [("col_name", "type"), ("col_name", "type"), ("col_name", "type")],
+    [("col_name", "type"), ("col_name", "type"), ("col_name", "type")]
+]
 
 
 def subscribe_test(event, context):
@@ -56,6 +72,25 @@ def load_gcs_json_to_bq_tbl(blob_dir: str=None):
         print(f"Loaded {destination_table.num_rows} rows.")
 
 
+def create_dwh_tables():
+    """Create datawarehouse tables if not exist.
+    """
+    client = bigquery.Client(project=PROJECT_ID)
+    dataset_ref = bigquery.DatasetReference(PROJECT_ID, BQ_WAREHOUSE_DATASET)
+    
+    for tbl_idx in DwhTbls:
+        cur_tbl_name = DWH_TABLE_NAMES[tbl_idx]
+        cur_tbl_schema = DWH_SCHEMAS[tbl_idx]
+        table_ref = dataset_ref.table(cur_tbl_name)
+        schema = [bigquery.SchemaField(x[0], x[1]) for x in cur_tbl_schema]
+        table = bigquery.Table(table_ref, schema=schema)
+        table.time_partitioning = bigquery.TimePartitioning(
+            type_=bigquery.TimePartitioningType.DAY,
+            field="target_date",  # name of column to use for partitioning
+            expiration_ms=7776000000,
+        )  # 90 days
+
+
 def load_to_warehouse(event, context):
     """Background Cloud Function to be triggered by Pub/Sub.
     Args:
@@ -87,8 +122,18 @@ def load_to_warehouse(event, context):
     # Load objects(in GCS) to BQ work tables for datalake
     load_gcs_json_to_bq_tbl(blob_dir)
     
+    # Create datawarehouse tables if not exist.
+    create_dwh_tables()
+    
     # Transform datalake to datawarehouse on BQ Engine
     """
     datalake to datawarehouse with SQL on BQ
-    SQLファイルは別ファイルにしたほうがいいかも、できるならね
     """
+    bq_client = bigquery.Client(project=PROJECT_ID)
+    with open('./sample_query.sql', 'r', encoding='utf-8') as f:
+        query_str = f.read()
+    query_job = bq_client.query(query_str)  # Make an API request.
+    print('The query data.')
+    print(f"query_job type is ... {type(query_job)}")
+    for row in query_job:
+        print(row)
