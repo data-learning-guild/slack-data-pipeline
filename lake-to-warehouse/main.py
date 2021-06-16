@@ -14,6 +14,11 @@ LOADING_FILE_NAMES = [
     FN_CONVS_LIST,
     FN_USERS_LIST
 ]
+MASTER_FILE_NAMES = [
+    FN_CONVS_LIST,
+    FN_USERS_LIST
+]
+COL_TARGET_DATE = "target_date"
 PROJECT_ID = os.getenv('PROJECT_ID', default='salck-visualization')
 GCS_BUCKET = os.getenv('GCS_BUCKET')
 BQ_LAKE_DATASET = os.getenv('BQ_LAKE_DATASET')
@@ -72,6 +77,38 @@ def load_gcs_json_to_bq_tbl(blob_dir: str=None):
         print(f"Loaded {destination_table.num_rows} rows.")
 
 
+def add_target_date_column_to_lake_tbl(target_date: str=None):
+    """Add target_date column to datalake work table in BQ
+        ref: https://cloud.google.com/bigquery/docs/writing-results
+    """
+    bq_client = bigquery.Client()
+    # add column by tables
+    for fn in MASTER_FILE_NAMES:
+        table_name = 'work_' + fn[:-5]
+        table_id = f"{PROJECT_ID}.{BQ_LAKE_DATASET}.{table_name}"
+        
+        job_config = bigquery.QueryJobConfig(
+            destination=table_id,
+            write_disposition="WRITE_TRUNCATE"
+        )
+        
+        sql = f"""
+            SELECT *, "{target_date}" AS {COL_TARGET_DATE}
+            FROM `{table_id}`
+        """
+        
+        query_job = bq_client.query(sql, job_config=job_config)  # Make an API request.
+        query_job.result()  # Wait for the job to complete.
+        
+        # logging
+        destination_table = bq_client.get_table(table_id)
+        field_names = [x.name for x in destination_table.schema]
+        if COL_TARGET_DATE in field_names:
+            print(f"Successfully added {COL_TARGET_DATE} column. (tbl: {table_id})")
+        else:
+            print(f"Failed to add {COL_TARGET_DATE} column. (tbl: {table_id})")
+
+
 def create_dwh_tables():
     """Create datawarehouse tables if not exist.
     """
@@ -121,6 +158,10 @@ def load_to_warehouse(event, context):
     
     # Load objects(in GCS) to BQ work tables for datalake
     load_gcs_json_to_bq_tbl(blob_dir)
+    
+    # Add target_date column to BQ work talbes for datalake
+    target_date_str = blob_dir[-10:]
+    add_target_date_column_to_lake_tbl(target_date_str)
     
     # Create datawarehouse tables if not exist.
     create_dwh_tables()
