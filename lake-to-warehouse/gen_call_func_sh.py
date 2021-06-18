@@ -31,12 +31,18 @@ def main():
     base_str = "gcloud pubsub topics publish ingested-slackdata-to-gcs --project=salck-visualization"
     cmd_lines = []
     for i, target_date in enumerate(target_dates):
+        # comment
         comment_str = "echo exec trigger function {}".format(i+1)
         cmd_lines.append(comment_str)
+        # main execution
         blob_dir = f"slack_lake/daily-ingest_target-date_{target_date}"
         opt = "{\\\"data\\\":{\\\"message\\\":\\\"Manual Publish with gcloud\\\",\\\"blob-dir-path\\\":" + f"\\\"{blob_dir}\\\"" + "}}"
         opt_str = f"--message=\"{opt}\""
         cmd_lines.append(base_str + " " + opt_str)
+        # sleep
+        sleep_time_sec = 300
+        cmd_lines.append(f"echo sleep {sleep_time_sec} seconds until next execution ...")
+        cmd_lines.append(f"sleep {sleep_time_sec}")
 
     # write script
     with open('call_functions_batch.sh', 'w') as f:
