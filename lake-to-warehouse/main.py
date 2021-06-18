@@ -105,6 +105,17 @@ def add_target_date_column_to_lake_tbl(target_date: str=None):
             print(f"Failed to add {COL_TARGET_DATE} column. (tbl: {table_id})")
 
 
+def query_from_file(client: bigquery.client.Client=None, query_path: str=""):
+    """Execute query from file on BQ engine via client library.
+    """
+    print(f"{query_path} execution started.")
+    with open(query_path, 'r', encoding='utf-8') as f:
+        query_str = f.read()
+    query_job = client.query(query_str)  # Make an API request.
+    query_result = query_job.result()
+    print(f"Query result is ... \n{query_result}")
+
+
 def load_to_warehouse(event, context):
     """Background Cloud Function to be triggered by Pub/Sub.
     Args:
@@ -145,15 +156,6 @@ def load_to_warehouse(event, context):
     datalake to datawarehouse with SQL on BQ
     """
     bq_client = bigquery.Client(project=PROJECT_ID)
-    
-    
-    
-    query_from_file(".sql")
-    
-    with open('./sample_query.sql', 'r', encoding='utf-8') as f:
-        query_str = f.read()
-    query_job = bq_client.query(query_str)  # Make an API request.
-    print('The query data.')
-    print(f"query_job type is ... {type(query_job)}")
-    for row in query_job:
-        print(row)
+    for query_file in QUERY_FILE_NAMES:
+        query_from_file(bq_client, QUERY_DIR + "/" + query_file)
+    print("Loading and Transforming terminated.")
