@@ -23,20 +23,16 @@ PROJECT_ID = os.getenv('PROJECT_ID', default='salck-visualization')
 GCS_BUCKET = os.getenv('GCS_BUCKET')
 BQ_LAKE_DATASET = os.getenv('BQ_LAKE_DATASET')
 BQ_WAREHOUSE_DATASET = os.getenv('BQ_WAREHOUSE_DATASET')
-
-class DwhTbls(IntEnum):
-    TBL_0 = 0
-    TBL_1 = 1
-    TBL_2 = 2
-DWH_TABLE_NAMES = [
-    "TBL_0",
-    "TBL_1",
-    "TBL_2"
-]
-DWH_SCHEMAS = [
-    [("col_name", "type"), ("col_name", "type"), ("col_name", "type")],
-    [("col_name", "type"), ("col_name", "type"), ("col_name", "type")],
-    [("col_name", "type"), ("col_name", "type"), ("col_name", "type")]
+QUERY_DIR = "./queries"
+FN_QUERY_CHANNELS = "TransformLakeToWarehouse__channels.sql"
+FN_QUERY_USERS = "TransformLakeToWarehouse__users.sql"
+FN_QUERY_MESSAGES = "TransformLakeToWarehouse__messages.sql"
+FN_QUERY_REACTIONS = "TransformLakeToWarehouse__reactions.sql"
+QUERY_FILE_NAMES = [
+    FN_QUERY_CHANNELS,
+    FN_QUERY_USERS,
+    FN_QUERY_MESSAGES,
+    FN_QUERY_REACTIONS
 ]
 
 
@@ -109,25 +105,6 @@ def add_target_date_column_to_lake_tbl(target_date: str=None):
             print(f"Failed to add {COL_TARGET_DATE} column. (tbl: {table_id})")
 
 
-def create_dwh_tables():
-    """Create datawarehouse tables if not exist.
-    """
-    client = bigquery.Client(project=PROJECT_ID)
-    dataset_ref = bigquery.DatasetReference(PROJECT_ID, BQ_WAREHOUSE_DATASET)
-    
-    for tbl_idx in DwhTbls:
-        cur_tbl_name = DWH_TABLE_NAMES[tbl_idx]
-        cur_tbl_schema = DWH_SCHEMAS[tbl_idx]
-        table_ref = dataset_ref.table(cur_tbl_name)
-        schema = [bigquery.SchemaField(x[0], x[1]) for x in cur_tbl_schema]
-        table = bigquery.Table(table_ref, schema=schema)
-        table.time_partitioning = bigquery.TimePartitioning(
-            type_=bigquery.TimePartitioningType.DAY,
-            field="target_date",  # name of column to use for partitioning
-            expiration_ms=7776000000,
-        )  # 90 days
-
-
 def load_to_warehouse(event, context):
     """Background Cloud Function to be triggered by Pub/Sub.
     Args:
@@ -163,14 +140,16 @@ def load_to_warehouse(event, context):
     target_date_str = blob_dir[-10:]
     add_target_date_column_to_lake_tbl(target_date_str)
     
-    # Create datawarehouse tables if not exist.
-    create_dwh_tables()
-    
     # Transform datalake to datawarehouse on BQ Engine
     """
     datalake to datawarehouse with SQL on BQ
     """
     bq_client = bigquery.Client(project=PROJECT_ID)
+    
+    
+    
+    query_from_file(".sql")
+    
     with open('./sample_query.sql', 'r', encoding='utf-8') as f:
         query_str = f.read()
     query_job = bq_client.query(query_str)  # Make an API request.
