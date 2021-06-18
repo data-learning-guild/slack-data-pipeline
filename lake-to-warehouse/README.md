@@ -24,12 +24,10 @@
 [conversations.history | Slack API Documentation](https://api.slack.com/methods/conversations.history)
 
 ```json
-[
-    {
-        "channel": "channel id in STRING",
-        "messages": ["the same as conversations.history"]
-    }
-]
+{"channel": "channel id STR", "message": {"key": "value"}}
+{"channel": "channel id STR", "message": {"key": "value"}}
+...
+{"channel": "channel id STR", "message": {"key": "value"}}
 ```
 
 
@@ -45,4 +43,26 @@
 
 ## schema of datawarehouse on bq
 
-**TODO : architect datawarehouse schema**
+Table architecture is based on [this schema](https://github.com/data-learning-guild/slack-archive-to-bq).
+
+### channels
+
+The master table for channels.
+
+
+
+### users
+
+The master table for users.
+
+### channel_users
+
+The cross reference table for mapping channels to users.
+
+### messages
+
+The transaction table for messages.
+
+### reactions
+
+The transaction table for reactions.
