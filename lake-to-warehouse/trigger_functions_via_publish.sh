@@ -1,0 +1,1 @@
+gcloud pubsub topics publish ingested-slackdata-to-gcs --message="{\"data\": {\"message\": \"Manual Publish with gcloud\", \"blob-dir-path\": \"slack_lake/daily-ingest_target-date_2021-06-01\"}}"  --project=salck-visualization

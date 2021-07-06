@@ -41,7 +41,8 @@
 |6|is_general|BOOL|NOT NULL||conversations_list.json > is_general|
 |7|topic_val|STRING|NULLABLE|latest topic|conversations_list.json > topic.value|
 |8|purpose_val|STRING|NULLABLE|latest purpose|conversations_list.json > purpose.value|
-|9|target_date|DATE|NOT NULL|when master loaded to dwh in UTC<br>`2014-09-27`|partitioning with this column|
+|9|num_members|INTEGER|NULLABLE|num of members belong to the channel|conversations_list.json > num_members|
+|10|target_date|DATE|NOT NULL|when master loaded to dwh in UTC<br>`2014-09-27`|partitioning with this column|
 
 <br>
 
@@ -63,23 +64,28 @@
 |6|status_txt|STRING|NULLABLE||users_list.json > profile.status_text|
 |7|status_emoji|STRING|NULLABLE||users_list.json > profile.status_emoji|
 |8|image_48_path|STRING|NOT NULL|icon image 48x48|users_list.json > profile.image_48|
-|9|is_bot|BOOL|NOT NULL||users_list.json > |
-|10|is_app_user|BOOL|NOT NULL||users_list.json > |
-|11|target_date|DATE|NOT NULL|when master loaded to dwh in UTC<br>`2014-09-27`|partitioning with this column|
+|9|is_admin|BOOL|NOT NULL||users_list.json > |
+|10|is_owner|BOOL|NOT NULL||users_list.json > |
+|11|is_app_user|BOOL|NOT NULL||users_list.json > |
+|12|is_bot|BOOL|NOT NULL||users_list.json > |
+|13|is_restricted|BOOL|NOT NULL||users_list.json > |
+|14|target_date|DATE|NOT NULL|when master loaded to dwh in UTC<br>`2014-09-27`|partitioning with this column|
 
 **※display_name_normalizedにすると半角カタカナになるので、DB的に好ましくないと判断**
 
 <br>
 
-### channel_users
+### ~~channel_users~~
 
-チャンネルとユーザーのひも付きを表す中間テーブル（どのユーザーがどのチャンネルに参加しているか）
+<font color=red size=4>各チャンネルに誰が参加しているかは、Slackのエクスポート機能で出力されるchannels.jsonには含まれているが、conversations.list API Method には含まれていない。なかったとしても、特に困ることはないので、不要とする。</font>
+
+~~チャンネルとユーザーのひも付きを表す中間テーブル（どのユーザーがどのチャンネルに参加しているか）~~
 
 > channel N : user N
 
-- 主な入力元
-  - `conversations_list.json`
-  - `users_list.json`
+- ~~主な入力元~~
+  - ~~`conversations_list.json`~~
+  - ~~`users_list.json`~~
 
 |No.|フィールド名|タイプ|モード|備考|対応するkey|
 |:--|:--|:--|:--|:--|:--|
@@ -100,13 +106,14 @@
 |No.|フィールド名|タイプ|モード|備考|対応するkey|
 |:--|:--|:--|:--|:--|:--|
 |0|id|INT64|Auto Increment|PK| - |
-|1|ts|FLOAT64|NOT NULL|PK|conversations_history.json > ts|
+|1|ts|FLOAT64|NOT NULL|PK|conversations_history.json > ts **partitioning with this column**|
 |2|user_id|STRING|NOT NULL|FK|conversations_history.json > user|
 |3|channel_id|STRING|NOT NULL|FK|conversations_history.json の<br>フォルダ名と channelsを利用して計算|
-|4|text|STRING|NULLABLE||conversations_history.json > |
-|5|thread_ts|FLOAT64|NULLABLE||conversations_history.json > thread_ts|
-|6|is_thread_child|BOOL|NOT NULL||True if <br> `conversations_history.json > parent_user_id` exists|
-|7|target_date|DATE|NOT NULL|バッチ実行時の属する日付（マニュアル実行の場合は、処理対象日付）|partitioning with this column|
+|4|client_msg_id|STRING|NULLABLE||conversations_history.json > |
+|5|text|STRING|NULLABLE||conversations_history.json > |
+|6|thread_ts|FLOAT64|NULLABLE||conversations_history.json > thread_ts|
+|7|is_thread|BOOL|NOT NULL||True if <br> `conversations.history > thread_ts ` is NOT NULL|
+|8|is_thread_parent|BOOL|NOT NULL||True if <br> `conversations.history > thread_ts` == `... > ts` |
 
 <br>
 
@@ -126,14 +133,14 @@
 |:--|:--|:--|:--|:--|:--|
 |0|id|INT64|Auto Increment|PK| - |
 |1|msg_ts|FLOAT64|NOT NULL|FK:リアクションしたメッセージのタイムスタンプ|conversations_history.json > ts|
-|2|reaction_name|STRING|NOT NULL||conversations_history.json > reactions[ i ].name|
-|3|user_id|STRING|NOT NULL|FK:リアクションしたユーザー|conversations_history.json > reactions[ i ].users[ j ]|
-|4|target_date|DATE|NOT NULL|バッチ実行時の属する日付（マニュアル実行の場合は、処理対象日付）|partitioning with this column|
+|2|msg_user_id|STRING|NOT NULL||conversations_history.json > user|
+|3|reaction_name|STRING|NOT NULL||conversations_history.json > reactions[ i ].name|
+|4|react_user_id|STRING|NOT NULL|FK:リアクションしたユーザー|conversations_history.json > reactions[ i ].users[ j ]|
 
 
 <br>
 
-### analytics_channel
+### ~~analytics_channel~~ （Enterpriseアカウントのみ）
 
 - 主な入力元
   - `analytics_channel.json`
@@ -156,7 +163,7 @@
 
 <br>
 
-### analytics_member
+### ~~analytics_member~~ （Enterpriseアカウントのみ）
 
 - 主な入力元
   - `analytics_member.json`

@@ -1,6 +1,7 @@
 import datetime
 import io
 import json
+import jsonlines
 import logging
 import os
 import pytz
@@ -10,6 +11,8 @@ import tempfile
 from flask import Request
 from google.cloud import exceptions
 from google.cloud import storage
+from google.cloud import pubsub_v1
+from google.api_core.exceptions import AlreadyExists
 from pathlib import Path
 from slack_bolt import App
 from slack_sdk import errors
@@ -20,6 +23,8 @@ logging.basicConfig(
     filename=logfilename,
     format='%(asctime)s %(message)s', datefmt='%Y-%m-%d %I:%M:%S %p',
     encoding='utf-8', level=logging.INFO)
+TOPIC_INGEST_SLACK_TO_LAKE = os.environ.get("TOPIC_NAME")
+PROJECT_ID = os.environ.get("PROJECT_ID")
 
 
 def download_conversations_list(client, page_limit: int) -> List[dict]:
@@ -67,12 +72,12 @@ def download_users_list(client, page_limit: int) -> List[dict]:
 
 def download_conversations_history(
     client, channel: str, page_limit: int,
-    latest_unix_time: float, oldest_unix_time: float) -> dict:
+    latest_unix_time: float, oldest_unix_time: float) -> List[dict]:
     """download Slack Web API conversations.list response.
         Returns:
-            {"channel":ccc, "messages":[{"text":xx, "ts":yy}, {}, ...]}
+            List of dict{"channel":ccc, "message":{ ... }}
     """
-    conversations_by_channel = {"channel": channel, "messages": []}
+    conversations_by_channel = []
     next_obj_exists = True
     next_cursor = None
     while next_obj_exists is True:
@@ -83,7 +88,10 @@ def download_conversations_history(
                                 limit = page_limit,
                                 latest = latest_unix_time,
                                 oldest = oldest_unix_time)
-            conversations_by_channel["messages"].extend(slack_response.get('messages'))
+            cnv_by_ch = slack_response.get('messages')
+            for item in cnv_by_ch:
+                item.update( {"channel": channel})
+            conversations_by_channel.extend(cnv_by_ch)
             if slack_response.get('has_more') is False:
                 next_cursor = ""
             else:
@@ -125,7 +133,7 @@ def exporting_dir(oldest_ut: float=None) -> str:
 
 # ==  BEGIN - Main Cloud Function  ==
 def ingest_slack_data(request, **kwargs):
-    """ingest slack data
+    """ingest slack data + publish topic
         Arguments:
             - request (flask.Request): The request object.
             - **kwargs for locally test
@@ -200,7 +208,8 @@ def ingest_slack_data(request, **kwargs):
         conversations_by_ch = download_conversations_history(
             client=client, channel=channel_id, page_limit=100, latest_unix_time=latest_unix_time, oldest_unix_time=oldest_unix_time
         )
-        conversations.append(conversations_by_ch)
+        if len(conversations_by_ch) > 0:
+            conversations.extend(conversations_by_ch)
     save_into_bucket(conversations, bucket, out_dir + '/' + 'conversations_history.json')
     
     # save completing log
@@ -209,6 +218,35 @@ def ingest_slack_data(request, **kwargs):
     ingest_log = {'ingested_at_ts': now.timestamp(), 'ingested_at': now.strftime('%Y-%m-%d %H:%M:%S')}
     save_into_bucket(ingest_log, bucket, out_dir + '/' + 'ingest_log.json')
     
+    # ----------------------------------------------------
+    # publish topic to trigger Loading to BQ function
+    publisher = pubsub_v1.PublisherClient()
+    topic_name = TOPIC_INGEST_SLACK_TO_LAKE
+    topic_path = publisher.topic_path(PROJECT_ID, topic_name)
+    
+    # create topic if not exists
+    try:
+        response = publisher.create_topic(request={"name": topic_path})
+        logging.info(f"Created a topic\n{response}")
+    except AlreadyExists:
+        logging.info(f"{topic_name} already exists.")
+    
+    # publishes a message
+    msg_bytes = json.dumps({
+        'data': {
+            'message': 'ingested slack data into cloud storage as jsonl files.',
+            'blob-dir-path': out_dir
+        }
+    }).encode('utf-8')
+    pub_result = ''
+    try:
+        publish_future = publisher.publish(topic_path, data=msg_bytes)
+        publish_future.result()  # Verify the publish succeeded
+        pub_result = f"Message published \ntopic : {TOPIC_INGEST_SLACK_TO_LAKE}\nmsg : key=blob-dir-path / val={out_dir}"
+        logging.info(pub_result)
+    except Exception as e:
+        logging.error(e)
+
     # == only local env ==
     # # copy log to export dir
     # from_log_path = Path(logfilename)
@@ -216,7 +254,7 @@ def ingest_slack_data(request, **kwargs):
     # shutil.copy2(from_log_path, to_log_path)
     # == only local env ==
     
-    return 'Successfully ingested slack data.'
+    return f"Successfully ingested slack data.\n{pub_result}"
 # ==  END - Main Cloud Function  ==
 
 
@@ -225,13 +263,17 @@ def save_into_bucket(data: List[dict], bucket: storage.bucket.Bucket, obj_name: 
     """save response data as json into cloud storage bucket
     """
     blob = storage.blob.Blob(name=obj_name, bucket=bucket)
-    f = io.BytesIO(json.dumps(data, ensure_ascii=False, indent=10).encode('utf-8'))
+    f = io.BytesIO()
+    with jsonlines.Writer(f) as writer:
+        for d in data:
+            writer.write(d)
     try:
-        blob.upload_from_file(f)
+        blob.upload_from_file(f, rewind=True)
     except exceptions.GoogleCloudError as e:
         logging.warning('Upload Error : {}'.format(obj_name))
         logging.warning(e)
     logging.info('save {}'.format(obj_name))
+    f.close()
 # ==  END - Sub Cloud Function  ==
 
 
