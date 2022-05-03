@@ -26,9 +26,7 @@ Via Slack API methods below. ([document and tester](https://api.slack.com/method
 
 - users.list
   - `limit=100` として、最後のページまで繰り返し処理（`cursor={"response_metadata": "next_cursor"}` によって次ページ取得）
-  - user ID（=レスポンス内の `"members": [{"id"}, ...]`） を保持し、次の `users.getPresence` で利用する 
-- ~~users.getPresence~~ <font color=blue>バッチ実行時（夜中）のpresenceを取得しても意味がない。この当たりの情報はanalyticsから取得するのが妥当。</font>
-  - ~~`users.list` から取得しておいた、user ID リストをAPIのパラメータに設定~~
+  - user ID（=レスポンス内の `"members": [{"id"}, ...]`） を保持し、次の `users.getPresence` で利用する
 - conversations.list
   - `limit=20` として、最後のページまで繰り返し処理（`cursor={"response_metadata": "next_cursor"}` によって次ページ取得）
   - channel ID（=レスポンス内の `"channels": [{"id"}, ...]`） を保持し、次の `conversations.history` で利用する 
@@ -38,25 +36,8 @@ Via Slack API methods below. ([document and tester](https://api.slack.com/method
   - `oldest`: バッチ処理実行時が属する日付の前日の00:00を指定（Unixエポックタイム）
 
 
-### Monthly ingest
-
-> 毎月初日の00:00に実行
-> 前月の1日〜末日までを指定して、1月分のデータを取得
-> Input: 実行日の日付
-
-- ~~admin.analytics.getFile~~ ※ only Slack Enterprise
-  - ~~チャンネルアナリティクス~~
-    - `type=public_channel`
-    - `date=YYYY-MM-DD` in UTC (from 2020/01)：バッチ処理実行日
-  - ~~メンバーアナリティクス~~
-    - `type=member`
-    - `date=YYYY-MM-DD` in UTC (from 2020/01)：バッチ処理実行日
-
-
 ## How to transform
 
-- ~~admin.analytics.getFile~~
-  - メールアドレスは保存対象から除外する
 - Others within pagenation
   - `limit` パラメータを明示的に設定し、ページごとに細かく区切って取得する
   - ページごとにtemplateファイルとして一時的に出力しておいて、全ページのロードが終わったら、統合して、ファイル出力する
@@ -88,7 +69,6 @@ Via Slack API methods below. ([document and tester](https://api.slack.com/method
     - `conversations_list.json`
     - `conversations_history.json`
     - `users_list.json`
-    - ~~`users_presence.json`~~
     - `ingest_log_at_YYYY-MM-DD.txt`（target-dateと必ずしも一致しない）
   - `monthly-ingest_target-date_YYYY-MM-DD/`
     - `analytics_channel.json`

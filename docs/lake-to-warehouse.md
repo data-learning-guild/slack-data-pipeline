@@ -1,15 +1,5 @@
 # Data Lake to Data Warehouse
 
-## refs
-
-- slack-archive-to-bq [![icon](https://img.shields.io/badge/-View%20on%20GitHub-181717?style=flat&logo=github&logoColor=white)](https://github.com/data-learning-guild/slack-archive-to-bq)
-- [BigQueryにおけるスキーマの指定 | Google Cloud](https://cloud.google.com/bigquery/docs/schemas?hl=ja)
-- [標準SQLのデータ型](https://cloud.google.com/bigquery/docs/reference/standard-sql/data-types?hl=ja)
-- [データ ウェアハウス使用者のための BigQuery | Google Cloud](https://cloud.google.com/solutions/bigquery-data-warehouse?hl=ja)
-- [やさしい図解で学ぶ　中間テーブル　多対多　概念編 | Qiita](https://qiita.com/ramuneru/items/db43589551dd0c00fef9)
-
-<br>
-
 ## Data Warehouse model
 
 - tables
@@ -75,26 +65,6 @@
 
 <br>
 
-### ~~channel_users~~
-
-<font color=red size=4>各チャンネルに誰が参加しているかは、Slackのエクスポート機能で出力されるchannels.jsonには含まれているが、conversations.list API Method には含まれていない。なかったとしても、特に困ることはないので、不要とする。</font>
-
-~~チャンネルとユーザーのひも付きを表す中間テーブル（どのユーザーがどのチャンネルに参加しているか）~~
-
-> channel N : user N
-
-- ~~主な入力元~~
-  - ~~`conversations_list.json`~~
-  - ~~`users_list.json`~~
-
-|No.|フィールド名|タイプ|モード|備考|対応するkey|
-|:--|:--|:--|:--|:--|:--|
-|0|id|INT64|Auto Increment|PK| - |
-|1|channel_id|STRING|NOT NULL|FK|conversations_list.json > id|
-|2|user_id|STRING|NOT NULL|FK|users_list.json > id|
-|3|target_date|DATE|NOT NULL|when master loaded to dwh in UTC<br>`2014-09-27`|partitioning with this column|
-
-<br>
 
 ### messages
 
@@ -140,46 +110,10 @@
 
 <br>
 
-### ~~analytics_channel~~ （Enterpriseアカウントのみ）
+## References
 
-- 主な入力元
-  - `analytics_channel.json`
-
-|No.|フィールド名|タイプ|モード|備考|対応するkey|
-|:--|:--|:--|:--|:--|:--|
-|0|id|INT64|**PK** <br>NOT NULL|Auto Increment| - |
-|1|target_date|DATE|NOT NULL|partitioning with this column|date|
-|2|channel_id|STRING|**FK** <br>NOT NULL||channel_id|
-|3|date_last_active|DATETIME_INT|NULLABLE?||date_last_active|
-|4|total_members_count|INT64|NOT NULL||total_members_count|
-|5|active_members_count|INT64|NOT NULL||active_members_count|
-|6|messages_posted_count|INT64|NOT NULL||messages_posted_count|
-|7|messages_posted_by_members_count|INT64|NOT NULL||messages_posted_by_members_count|
-|8|members_who_viewed_count|INT64|NOT NULL||members_who_viewed_count|
-|9|members_who_posted_count|INT64|NOT NULL||members_who_posted_count|
-|10|reactions_added_count|INT64|NOT NULL||reactions_added_count|
-
-- カラムの仕様は[公式Doc](https://api.slack.com/methods/admin.analytics.getFile)を参照
-
-<br>
-
-### ~~analytics_member~~ （Enterpriseアカウントのみ）
-
-- 主な入力元
-  - `analytics_member.json`
-
-|No.|フィールド名|タイプ|モード|備考|対応するkey|
-|:--|:--|:--|:--|:--|:--|
-|0|id|INT64|**PK** <br>NOT NULL|Auto Increment| - |
-|1|target_date|DATE|NOT NULL|partitioning with this column|date|
-|2|user_id|STRING|**FK** <br>NOT NULL||user_id|
-|3|is_guest|BOOL|NOT NULL||is_guest|
-|4|is_active|BOOL|NOT NULL|User has posted a message or read at least one channel or direct message on the date|is_active|
-|5|is_active_ios|BOOL|NOT NULL||is_active_ios|
-|6|is_active_android|BOOL|NOT NULL||is_active_android|
-|7|is_active_desktop|BOOL|NOT NULL||is_active_desktop|
-|8|reactions_added_count|INT64|NOT NULL||reactions_added_count|
-|9|messages_posted_count|INT64|NOT NULL||messages_posted_count|
-|10|channel_messages_posted_count|INT64|NOT NULL|Total messages posted by the user in private channels and public channels on the date in the API request, not including direct messages|channel_messages_posted_count|
-
-- カラムの仕様は[公式Doc](https://api.slack.com/methods/admin.analytics.getFile)を参照
+- slack-archive-to-bq [![icon](https://img.shields.io/badge/-View%20on%20GitHub-181717?style=flat&logo=github&logoColor=white)](https://github.com/data-learning-guild/slack-archive-to-bq)
+- [BigQueryにおけるスキーマの指定 | Google Cloud](https://cloud.google.com/bigquery/docs/schemas?hl=ja)
+- [標準SQLのデータ型](https://cloud.google.com/bigquery/docs/reference/standard-sql/data-types?hl=ja)
+- [データ ウェアハウス使用者のための BigQuery | Google Cloud](https://cloud.google.com/solutions/bigquery-data-warehouse?hl=ja)
+- [やさしい図解で学ぶ　中間テーブル　多対多　概念編 | Qiita](https://qiita.com/ramuneru/items/db43589551dd0c00fef9)
